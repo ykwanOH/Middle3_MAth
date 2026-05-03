@@ -1183,15 +1183,31 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- PDF.js library (CDN) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+<!-- PWA support -->
+<link rel="manifest" id="pwa-manifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="중3수학">
+<meta name="theme-color" content="#1a1410">
+
+<!-- PDF.js: UMD 빌드 사용 (file:// 프로토콜 호환, ES module import 불필요) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script type="module">
 // ============================================================
-// PDF.js setup
+// PDF.js setup  (UMD 빌드 - window.pdfjsLib 으로 접근)
 // ============================================================
-import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+// workerSrc: blob URL 방식으로 file:// 에서도 작동하게
+async function setupPdfWorker() {
+  const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  try {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  } catch(e) {
+    console.warn('worker URL 설정 실패:', e);
+  }
+}
+setupPdfWorker();  // top-level await 대신 호출만 (비동기지만 init() 전에 완료됨)
+const pdfjsLib = window.pdfjsLib;
 
 // ============================================================
 // DATA: 교과서 목차 (printed page = PDF physical page)
@@ -1660,17 +1676,30 @@ function showLoadError(err) {
 function showInitialPrompt() {
   const loading = document.getElementById('pdf-loading');
   loading.classList.remove('hidden');
+  // iPad 감지
+  const isIpad = /iPad|Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
+  const ipadNote = isIpad ? `
+    <div style="margin-top:14px; padding:10px 14px; background:rgba(184,146,59,0.15); border:1px solid rgba(184,146,59,0.4); border-radius:6px; font-size:12px; color:#d4b464; line-height:1.6; text-align:left;">
+      <b>📱 iPad 사용 중이신가요?</b><br>
+      1. <b>Files 앱</b>에서 PDF를 이 화면으로 <b>드래그 & 드롭</b><br>
+      2. 또는 아래 ⚙ 설정에서 파일 선택<br>
+      3. 한 번 로드하면 이후 자동으로 기억합니다<br>
+      <small style="opacity:0.7;">★ Safari에서 "홈 화면에 추가"하면 앱처럼 사용 가능</small>
+    </div>` : '';
+  
   loading.innerHTML = `
     <div class="pdf-error" style="max-width:480px;">
       <div style="font-size:48px; margin-bottom:14px;">📚</div>
       <strong style="font-size:16px; color:#f4ecd8;">PDF 파일을 불러와주세요</strong><br><br>
       우상단의 <b style="color:#d4b464">⚙ 설정</b> 버튼을 눌러<br>
       교과서 PDF와 답지 PDF를 선택해 주세요.<br><br>
-      <small style="color:#a89878; line-height:1.7;">한 번 선택하면 이 브라우저에 저장되어<br>다음에 열 때 자동으로 불러와집니다.</small><br><br>
+      <small style="color:#a89878; line-height:1.7;">한 번 선택하면 이 브라우저에 저장되어<br>다음에 열 때 자동으로 불러와집니다.</small>
+      ${ipadNote}
+      <br>
       <button onclick="document.getElementById('btn-settings').click()" 
               style="background:#c8442a; color:white; border:none; padding:10px 22px; 
                      border-radius:5px; font-size:14px; font-weight:700; cursor:pointer;
-                     font-family:inherit;">
+                     font-family:inherit; margin-top:8px;">
         ⚙ 설정 열기
       </button>
     </div>`;
@@ -2192,52 +2221,91 @@ async function generateQuestions() {
 }
 
 function buildPrompt(ctx, lv) {
-  return `당신은 한국 중학교 3학년 수학 교사입니다. 학생이 학습 중인 교과서의 ${ctx.unit.roman}. ${ctx.unit.title} 단원의 "${ctx.item.name}" 부분을 학습한 학생을 위한 추가 연습 문제를 생성해 주세요.
+  return `당신은 한국 중학교 3학년 수학 교사입니다. 학생을 위한 ${lv.ko} 난이도 수학 문제 ${state.qcount}개를 작성하세요.
 
-【단원 정보】
-- 대단원: ${ctx.unit.roman}. ${ctx.unit.title}
-- 중단원: ${ctx.section.title}
-- 소단원: ${ctx.item.name}
-- 교과서 페이지: ${ctx.item.page}쪽 (현재 학생이 보고 있는 페이지: ${state.curPage}쪽)
+【단원】 ${ctx.unit.roman}. ${ctx.unit.title} > ${ctx.item.name} (교과서 ${ctx.item.page}쪽)
+【난이도】 ${lv.ko} — ${lv.desc}
 
-【난이도: ${lv.ko}】
-${lv.desc}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☆ 출력 형식 (반드시 준수) ☆
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-【생성 요청】
-- 총 ${state.qcount}개의 문제를 생성하세요.
-- 각 문제는 독립적이고 새로워야 합니다 (교과서와 동일한 문제 금지, 숫자만 다른 동일 유형은 기본 난이도에서만 허용).
-- 한국 중3 학생이 이해할 수 있는 친근한 한국어로 작성하세요.
-- 수학 표현은 LaTeX로 작성하되, 인라인은 \\(...\\), 블록은 \\[...\\] 로 감싸세요.
-- 답뿐만 아니라 단계별 풀이를 상세히 작성하세요.
+JSON이 아닌 아래 구분자 형식으로 출력합니다 (백슬래시 이스케이프 불필요):
 
-【★ 그림/도형 처리 — 매우 중요 ★】
-"오른쪽 그림과 같이", "아래 그림처럼", "다음 그림에서" 같은 표현을 절대 사용하지 마세요. 학생은 그림을 볼 수 없습니다.
-다음 두 가지 방법 중 하나를 선택하세요:
+===Q1===
+[문제 본문]
+---SOL1---
+[단계별 풀이]
+---ANS1---
+[최종 답]
+===Q2===
+[문제 본문]
+---SOL2---
+[단계별 풀이]
+---ANS2---
+[최종 답]
 
-(A) **그림 없이 텍스트로만 충분히 설명되는 문제로 만들기** (선호)
-   예: "삼각형 ABC에서 AB=5, BC=7, ∠B=60°일 때, AC의 길이를 구하시오."
-   예: "이차함수 \\(y = x^2 - 4x + 3\\)의 그래프의 꼭짓점 좌표를 구하시오."
+(===Q1=== 앞이나 마지막 답 뒤에는 어떤 텍스트도 쓰지 말 것)
 
-(B) **꼭 그림이 필요하면 SVG 코드를 함께 제공**
-   - 좌표평면, 함수 그래프, 도형 등은 직접 SVG로 그리세요.
-   - SVG 크기: viewBox="0 0 400 300" 권장.
-   - 검은 선(stroke="#333"), 보조선은 회색(stroke="#999" stroke-dasharray="3,3"), 강조는 빨강(stroke="#c8442a")
-   - 좌표축, 눈금, 라벨을 명확하게.
-   - SVG는 문제의 "svg" 필드에 코드 전체(<svg ...>...</svg>)를 넣으세요.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☆ 수식 표기 규칙 ☆
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-이차함수 그래프 같은 경우 (B)를 적극 활용하세요. 도형 문제도 가능하면 (B)로 그려주세요.
+[필수] 모든 수식은 \\(  \\) 또는 \\[  \\] 안에 작성:
+  ○ 인라인: \\(x^2 + 3x = 0\\)
+  ○ 독립: \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\]
 
-【반드시 다음 JSON 형식으로만 출력】(설명 텍스트 없이 JSON만):
-{
-  "questions": [
-    {
-      "question": "문제 텍스트 (LaTeX 포함 가능, 그림 참조 표현 금지)",
-      "svg": "필요시 SVG 코드 전체 (<svg ...>...</svg>), 불필요하면 빈 문자열",
-      "solution": "단계별 상세 풀이 (LaTeX 포함 가능)",
-      "answer": "최종 답"
-    }
-  ]
-}`;
+[필수] 수식 명령어는 백슬래시 1개로 시작:
+  ○ 분수: \\frac{1}{2}    ✗ frac{1}{2}, dfrac, dfrac12
+  ○ 제곱근: \\sqrt{2}      ✗ sqrt2, sqrt 2
+  ○ 그리스: \\alpha, \\pi, \\theta   ✗ alpha, pi, theta
+  ○ 같다/다르다: =, \\neq    ✗ aeqb, neq
+  ○ 곱셈: \\times       ✗ times
+  ○ 점/말줄임: \\cdot, \\cdots   ✗ cdot, cdots
+
+[금지] 다음 마크다운/약어 절대 사용 금지:
+  ✗ **굵게**, *기울임*, ## 제목 (마크다운 전체)
+  ✗ \\dfrac (그냥 \\frac 사용)
+  ✗ \\quad \\text{...} (그냥 한국어로 "또는", "이때" 등 평문 사용)
+  ✗ \\Rightarrow, \\implies (대신 "따라서", "그러므로" 평문 사용)
+  ✗ \\therefore (대신 "따라서" 평문 사용)
+  ✗ \\mathbf{...}, \\boldsymbol{...} (강조 불필요)
+
+[금지] 영어 단어를 수식 환경 밖에 노출 금지:
+  ✗ "frac", "sqrt", "alpha", "pi" 등이 한국어 문장 안에 그대로 나오면 안 됨
+  ○ 항상 \\(...\\) 로 감쌀 것
+
+[강조 표시] 단계 구분은 다음과 같이 평문으로:
+  1단계: 식 세우기
+  2단계: 인수분해
+  3단계: 답 구하기
+  (별표 ** 사용 절대 금지)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☆ 그림 처리 ☆
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"오른쪽 그림", "다음 그림" 같은 표현 금지. 수식과 조건만으로 완전히 설명되는 문제만 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☆ 올바른 출력 예시 ☆
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+===Q1===
+이차방정식 \\(2x^2 - 5x + 3 = 0\\)의 두 근을 \\(\\alpha\\), \\(\\beta\\)라 할 때, \\(\\alpha + \\beta\\)의 값을 구하시오.
+---SOL1---
+1단계: 인수분해로 두 근 구하기
+\\[2x^2 - 5x + 3 = (2x-3)(x-1) = 0\\]
+따라서 \\(x = \\frac{3}{2}\\) 또는 \\(x = 1\\)
+
+2단계: 두 근의 합 계산
+\\[\\alpha + \\beta = \\frac{3}{2} + 1 = \\frac{5}{2}\\]
+---ANS1---
+\\(\\alpha + \\beta = \\frac{5}{2}\\)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이제 위 형식으로 ${state.qcount}개 문제를 작성하세요. 다른 설명 없이 ===Q1=== 부터 바로 시작.`;
 }
 
 async function callClaudeAPI(prompt) {
@@ -2272,22 +2340,142 @@ async function callClaudeAPI(prompt) {
 }
 
 function parseQuestions(rawText, level) {
-  // Strip markdown code fences if present
+  // 새 구분자 기반 파서: ===Q1=== ... ---SOL1--- ... ---ANS1--- ... ===Q2=== ...
   let txt = rawText.trim();
-  txt = txt.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
   
-  // Try to find JSON object
-  const m = txt.match(/\{[\s\S]*\}/);
-  if (m) txt = m[0];
+  // 코드 펜스 제거 (혹시 모델이 ``` 로 감쌌을 경우)
+  txt = txt.replace(/^```[a-z]*\s*/im, '').replace(/```\s*$/m, '').trim();
+  
+  // ===Q숫자=== 로 분할
+  const blocks = txt.split(/===\s*Q\d+\s*===/i).map(s => s.trim()).filter(s => s.length > 0);
+  
+  if (blocks.length === 0) {
+    // 구분자가 전혀 없으면 - 기존 JSON 형식 fallback 시도
+    return parseLegacyJSON(rawText, level);
+  }
+  
+  const items = [];
+  for (const block of blocks) {
+    // ---SOL숫자--- 와 ---ANS숫자--- 로 분리
+    const solMatch = block.match(/---\s*SOL\d*\s*---/i);
+    const ansMatch = block.match(/---\s*ANS\d*\s*---/i);
+    
+    let question = '', solution = '', answer = '';
+    
+    if (solMatch && ansMatch) {
+      const solIdx = block.indexOf(solMatch[0]);
+      const ansIdx = block.indexOf(ansMatch[0]);
+      question = block.slice(0, solIdx).trim();
+      solution = block.slice(solIdx + solMatch[0].length, ansIdx).trim();
+      answer = block.slice(ansIdx + ansMatch[0].length).trim();
+    } else if (solMatch) {
+      // 답 구분자 누락
+      const solIdx = block.indexOf(solMatch[0]);
+      question = block.slice(0, solIdx).trim();
+      solution = block.slice(solIdx + solMatch[0].length).trim();
+    } else {
+      // 풀이 구분자도 누락 - 전체를 문제로
+      question = block.trim();
+    }
+    
+    // 후처리: 마크다운/LaTeX 정리
+    question = cleanupMarkdown(question);
+    solution = cleanupMarkdown(solution);
+    answer = cleanupMarkdown(answer);
+    
+    if (question) items.push({ question, solution, answer, svg: '', level });
+  }
+  
+  if (items.length === 0) {
+    return parseLegacyJSON(rawText, level);
+  }
+  
+  return items;
+}
+
+// 구버전 JSON 형식 폴백 파서
+function parseLegacyJSON(rawText, level) {
+  let txt = rawText.trim();
+  txt = txt.replace(/^```(?:json)?\s*/im, '').replace(/```\s*$/m, '').trim();
+  const firstBrace = txt.indexOf('{');
+  const lastBrace = txt.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    txt = txt.slice(firstBrace, lastBrace + 1);
+  }
   
   try {
     const parsed = JSON.parse(txt);
-    return (parsed.questions || []).map(q => ({ ...q, level }));
-  } catch (err) {
-    console.error('Parse error:', err, 'Raw:', rawText);
-    // Fallback: return raw as one item
-    return [{ question: rawText, solution: '(파싱 실패)', answer: '', level }];
-  }
+    const qs = parsed.questions || parsed.문제 || [];
+    if (qs.length > 0) {
+      return qs.map(q => ({
+        question: cleanupMarkdown(q.question || ''),
+        solution: cleanupMarkdown(q.solution || ''),
+        answer: cleanupMarkdown(q.answer || ''),
+        svg: q.svg || '',
+        level
+      }));
+    }
+  } catch (e) {}
+  
+  // 정규식으로 개별 추출
+  try {
+    const items = [];
+    const qRegex = /"question"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    const sRegex = /"solution"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    const aRegex = /"answer"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+    
+    const questions = [...txt.matchAll(qRegex)].map(m => m[1]);
+    const solutions = [...txt.matchAll(sRegex)].map(m => m[1]);
+    const answers = [...txt.matchAll(aRegex)].map(m => m[1]);
+    
+    for (let i = 0; i < questions.length; i++) {
+      items.push({
+        question: cleanupMarkdown(questions[i].replace(/\\n/g, '\n').replace(/\\"/g, '"')),
+        solution: cleanupMarkdown((solutions[i] || '').replace(/\\n/g, '\n').replace(/\\"/g, '"')),
+        answer: cleanupMarkdown(answers[i] || ''),
+        svg: '',
+        level
+      });
+    }
+    if (items.length > 0) return items;
+  } catch (e) {}
+  
+  console.error('파싱 실패. 원문:', rawText.slice(0, 500));
+  return [{
+    question: '⚠ 문제 파싱에 실패했습니다. [다시 생성]을 눌러주세요.',
+    solution: '원시 응답 (참고용):\n\n' + rawText.slice(0, 800),
+    answer: '',
+    svg: '',
+    level,
+  }];
+}
+
+// 텍스트에서 마크다운 잔재와 깨진 LaTeX 명령어 정리
+function cleanupMarkdown(s) {
+  if (!s) return '';
+  s = String(s);
+  
+  // 1. 마크다운 굵게 ** ** → 그냥 텍스트 (또는 strong은 escapeAndMath에서 처리)
+  // 여기서는 LaTeX 안에 들어간 ** 만 제거 (수식 환경 보호)
+  
+  // 2. 잘못된 LaTeX 약어를 수식 환경 안으로 복구 시도
+  //    "dfrac14" → "\(\frac{1}{4}\)"
+  //    "frac{pi}{8}" → "\(\frac{\pi}{8}\)"
+  //    "alpha" 단독 → "\(\alpha\)"  ← 너무 위험. 안 함.
+  
+  // 3. 백슬래시 처리: 가장 흔한 케이스
+  //    JSON 이스케이프가 풀린 후 \\n, \\(, \\[ 가 텍스트에 그대로 있을 수 있음
+  s = s.replace(/\\n/g, '\n');
+  s = s.replace(/\\\\/g, '\\');
+  
+  // 4. 흔한 영어 단어 약어를 수식 환경으로 감싸기 (수식 환경 밖에 있는 경우)
+  //    예: "dfrac14" → "\(\frac{1}{4}\)" - 너무 위험하니 패스
+  //    대신 "\dfrac" → "\frac" 로 단순화
+  s = s.replace(/\\dfrac/g, '\\frac');
+  s = s.replace(/\\tfrac/g, '\\frac');
+  s = s.replace(/\\implies/g, '\\Rightarrow');
+  
+  return s;
 }
 
 function renderPopupQuestions(questions, ctx, lv) {
@@ -2319,7 +2507,7 @@ function renderPopupQuestions(questions, ctx, lv) {
   </div>`;
   
   body.innerHTML = html;
-  if (window.MathJax && window.MathJax.typesetPromise) window.MathJax.typesetPromise([body]);
+  retypeset(body);
 }
 
 function sanitizeSVG(svgStr) {
@@ -2408,27 +2596,99 @@ function renderSolutionsInPanel(questions, ctx, lv) {
       const sol = document.getElementById('sol-' + i);
       sol.classList.toggle('shown');
       btn.textContent = sol.classList.contains('shown') ? '📖 풀이 숨기기 ▴' : '📖 풀이 보기 ▾';
-      if (sol.classList.contains('shown') && window.MathJax?.typesetPromise) {
-        window.MathJax.typesetPromise([sol]);
-      }
+      if (sol.classList.contains('shown')) retypeset(sol);
     };
   });
-  if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise([c]);
+  retypeset(c);
 }
 
 function escapeAndMath(s) {
   if (!s) return '';
-  // Don't escape - we want LaTeX (and AI shouldn't be producing dangerous HTML)
-  // But escape < > & to be safe (MathJax uses \(...\) not < >)
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\\\(/g, '\\(')  // restore math delimiters
-    .replace(/\\\)/g, '\\)')
-    .replace(/\\\[/g, '\\[')
-    .replace(/\\\]/g, '\\]')
-    .replace(/\n/g, '<br>');
+  s = String(s);
+  
+  // 1. XSS 위험 제거
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
+  s = s.replace(/on\w+\s*=/gi, '');
+  
+  // 2. 마크다운 굵게 → <strong>  (수식 환경 ★바깥★ 에서만)
+  //    수식 안에 들어간 ** 는 LaTeX와 충돌하지 않도록 그대로 둠
+  s = replaceOutsideMath(s, /\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+  s = replaceOutsideMath(s, /(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>');
+  
+  // 3. 마크다운 헤더 # ## ### → 굵게
+  s = s.replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>');
+  
+  // 4. 리터럴 \n → <br>
+  s = s.replace(/\\n/g, '\n').replace(/\n/g, '<br>');
+  
+  // 5. 흔한 영어 약어가 수식 환경 ★밖★ 에 노출된 경우 자동 보정
+  //    (모델이 \( \) 감싸는 걸 잊었을 때 fallback)
+  s = autoWrapMathSymbols(s);
+  
+  return s;
+}
+
+// 수식 환경 \(...\) 또는 \[...\] 바깥에서만 정규식 치환
+function replaceOutsideMath(text, regex, replacement) {
+  // 수식 환경을 임시 토큰으로 치환
+  const placeholders = [];
+  let safe = text.replace(/\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g, (m) => {
+    placeholders.push(m);
+    return `\u0000MATH${placeholders.length - 1}\u0000`;
+  });
+  // 정규식 치환 적용
+  safe = safe.replace(regex, replacement);
+  // 토큰을 원래 수식으로 복원
+  safe = safe.replace(/\u0000MATH(\d+)\u0000/g, (m, i) => placeholders[parseInt(i)]);
+  return safe;
+}
+
+// 수식 환경 밖에 노출된 영어 명령어를 자동으로 수식으로 감싸기
+function autoWrapMathSymbols(text) {
+  // 흔한 패턴들을 수식 환경으로 감싸기
+  const patterns = [
+    // \frac{a}{b} 같은 것이 수식 환경 밖에 있는 경우
+    [/\\(?:d|t)?frac\s*\{[^{}]+\}\s*\{[^{}]+\}/g, m => `\\(${m.replace(/\\dfrac|\\tfrac/g, '\\frac')}\\)`],
+    // \sqrt{n} 같은 것
+    [/\\sqrt\s*\{[^{}]+\}/g, m => `\\(${m}\\)`],
+    // \alpha, \beta, \pi 등 그리스 문자가 단독으로
+    [/\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|nu|xi|pi|rho|sigma|tau|phi|chi|psi|omega|Alpha|Beta|Gamma|Delta|Epsilon|Theta|Lambda|Pi|Sigma|Phi|Omega)\b(?!\\)/g, m => `\\(${m}\\)`],
+    // \neq, \leq, \geq, \times 등 (단독)
+    [/\\(?:neq|leq|geq|times|div|cdot|cdots|ldots|approx|equiv|pm|mp)\b/g, m => `\\(${m}\\)`],
+  ];
+  
+  return replaceOutsideMath(text, null, null) === text ? 
+    applyPatternsOutsideMath(text, patterns) : 
+    applyPatternsOutsideMath(text, patterns);
+}
+
+function applyPatternsOutsideMath(text, patterns) {
+  // 수식 영역 보호
+  const placeholders = [];
+  let safe = text.replace(/\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g, (m) => {
+    placeholders.push(m);
+    return `\u0000MATH${placeholders.length - 1}\u0000`;
+  });
+  
+  for (const [pattern, replacer] of patterns) {
+    safe = safe.replace(pattern, replacer);
+  }
+  
+  // 인접한 \(...\)\(...\) 합치기 (예: \(\alpha\)\(=\)\(2\) → \(\alpha = 2\)) - 너무 공격적이라 일단 패스
+  
+  safe = safe.replace(/\u0000MATH(\d+)\u0000/g, (m, i) => placeholders[parseInt(i)]);
+  return safe;
+}
+
+// MathJax를 특정 요소에 강제 재실행
+function retypeset(el) {
+  if (!el) return;
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    try {
+      window.MathJax.typesetClear([el]);
+    } catch(e) {}
+    window.MathJax.typesetPromise([el]).catch(e => console.warn('MathJax error:', e));
+  }
 }
 
 function printQuestions() {
@@ -2714,9 +2974,21 @@ function updateZoomLabel() {
 function loadMathJax() {
   if (window.MathJax) return;
   window.MathJax = {
-    tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
-    options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] },
-    chtml: { scale: 1.0 }
+    tex: {
+      inlineMath: [['\\(', '\\)']],
+      displayMath: [['\\[', '\\]']],
+      processEscapes: true,
+      packages: {'[+]': ['ams', 'boldsymbol']},
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+      ignoreHtmlClass: 'no-mathjax',
+    },
+    startup: {
+      ready() {
+        MathJax.startup.defaultReady();
+      }
+    }
   };
   const s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js';
@@ -2735,23 +3007,22 @@ async function init() {
   initAIControls();
   initWrongNotes();
   initAnswerModal();
+  initDragDrop();
   renderWrongList();
   loadMathJax();
+  setupPWA();
   
-  // First-time greeting
   if (!state.apiKey) {
     setTimeout(() => {
       toast('💡 AI 문제 생성을 위해 우상단 ⚙ 설정에서 API 키를 입력하세요.');
     }, 1500);
   }
   
-  // 이전에 저장된 PDF가 있으면 자동 로드, 없으면 안내 표시
   const loaded = await tryLoadStoredPDFs();
   if (!loaded) {
     showInitialPrompt();
   }
   
-  // Resize handler
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
@@ -2759,6 +3030,87 @@ async function init() {
       if (state.pdfDoc) renderPage(state.curPage);
     }, 200);
   });
+}
+
+// ============================================================
+// Drag & Drop (iPad: Files 앱에서 파일을 뷰어 위로 드래그)
+// ============================================================
+function initDragDrop() {
+  const pdfPanel = document.querySelector('.pdf-panel');
+  
+  ['dragenter','dragover'].forEach(ev => {
+    pdfPanel.addEventListener(ev, (e) => {
+      e.preventDefault();
+      pdfPanel.style.outline = '3px dashed var(--gold)';
+    });
+  });
+  ['dragleave','drop'].forEach(ev => {
+    pdfPanel.addEventListener(ev, () => {
+      pdfPanel.style.outline = '';
+    });
+  });
+  
+  pdfPanel.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const files = [...(e.dataTransfer.files || [])].filter(f => f.name.toLowerCase().endsWith('.pdf'));
+    if (!files.length) { toast('PDF 파일을 드래그해주세요.', true); return; }
+    
+    if (files.length === 1) {
+      // 교과서인지 답지인지 파일명으로 추측
+      const name = files[0].name.toLowerCase();
+      const isAnswer = name.includes('답') || name.includes('answer') || name.includes('ans') || name.includes('sol');
+      const data = await files[0].arrayBuffer();
+      if (isAnswer) {
+        await dbSet('answer', { data: data.slice(0), name: files[0].name });
+        await loadAnswerFromData(data, files[0].name);
+        toast(`✓ 답지 로드: ${files[0].name}`);
+      } else {
+        await dbSet('textbook', { data: data.slice(0), name: files[0].name });
+        await loadTextbookFromData(data.slice(0), files[0].name);
+        toast(`✓ 교과서 로드: ${files[0].name}`);
+      }
+    } else {
+      // 2개 드롭 시 크기로 교과서/답지 구분 (더 큰 파일이 교과서)
+      files.sort((a, b) => b.size - a.size);
+      const tbData = await files[0].arrayBuffer();
+      const ansData = await files[1].arrayBuffer();
+      await dbSet('textbook', { data: tbData.slice(0), name: files[0].name });
+      await dbSet('answer', { data: ansData.slice(0), name: files[1].name });
+      await loadTextbookFromData(tbData.slice(0), files[0].name);
+      await loadAnswerFromData(ansData, files[1].name);
+      toast(`✓ 교과서 + 답지 로드 완료`);
+    }
+  });
+}
+
+// ============================================================
+// PWA (Progressive Web App) — Safari "홈 화면에 추가" 지원
+// ============================================================
+function setupPWA() {
+  // manifest.json을 동적으로 blob URL로 생성
+  const manifest = {
+    name: '중3 수학 학습 도구',
+    short_name: '중3수학',
+    description: '신사고 중학교 3학년 수학 인터랙티브 학습 도구',
+    start_url: './',
+    display: 'standalone',
+    background_color: '#1a1410',
+    theme_color: '#1a1410',
+    orientation: 'any',
+    icons: [
+      { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%231a1410'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110' fill='%23d4b464'%3E∑%3C/text%3E%3C/svg%3E", sizes: '192x192', type: 'image/svg+xml' },
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+  
+  // 애플 터치 아이콘 (홈 화면 아이콘)
+  const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="#1a1410"/><text x="90" y="130" text-anchor="middle" font-size="110" fill="#d4b464">∑</text></svg>`;
+  const iconBlob = new Blob([iconSvg], { type: 'image/svg+xml' });
+  const link = document.createElement('link');
+  link.rel = 'apple-touch-icon';
+  link.href = URL.createObjectURL(iconBlob);
+  document.head.appendChild(link);
 }
 
 init();
