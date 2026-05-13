@@ -822,6 +822,94 @@
   }
   .answer-canvas-wrap:hover::after { opacity: 1; }
   
+  /* ================== Print Preview Modal ================== */
+  #print-modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88); z-index: 3000;
+    overflow-y: auto; padding: 20px; box-sizing: border-box;
+  }
+  .pm-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; max-width: 880px; margin-left: auto; margin-right: auto;
+  }
+  .pm-title { color: #f4ecd8; font-size: 15px; font-weight: 700; }
+  .pm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pm-btn {
+    padding: 8px 16px; border-radius: 6px; font-size: 13px;
+    font-weight: 600; cursor: pointer; border: none; font-family: inherit;
+    transition: opacity 0.15s;
+  }
+  .pm-btn:hover { opacity: 0.85; }
+  .pm-btn-print { background: #4a7c4a; color: #fff; }
+  .pm-btn-save { background: #3a5a8a; color: #fff; }
+  .pm-btn-close { background: rgba(255,255,255,0.12); color: #f4ecd8; }
+  #print-pages-container {
+    max-width: 880px; margin: 0 auto;
+  }
+  .pm-page {
+    background: white;
+    width: 100%;
+    aspect-ratio: 297 / 210;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 4% 3%;
+    box-sizing: border-box;
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-size: clamp(11px, 1.4vw, 14px);
+    line-height: 1.6;
+    position: relative;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .pm-page-header {
+    position: absolute; top: 1.5%; left: 3%; right: 3%;
+    display: flex; justify-content: space-between;
+    font-size: 0.75em; color: #999; border-bottom: 1px solid #ddd;
+    padding-bottom: 3px;
+  }
+  .pm-col {
+    padding: 4% 3%;
+    overflow: hidden;
+  }
+  .pm-col:first-child { border-right: 1px dashed #ccc; }
+  .pm-q-head { font-weight: 700; color: #c8442a; margin-bottom: 5px; }
+  .pm-sol {
+    margin-top: 8px; padding: 6px 8px; background: #fffbe5;
+    border-radius: 4px; font-size: 0.88em;
+    border-top: 1px dashed #ccc;
+  }
+  /* 실제 인쇄용 숨김 영역 */
+  #print-area { display: none; }
+  @media print {
+    body > *:not(#print-area) { display: none !important; }
+    #print-area {
+      display: block !important;
+      position: fixed; inset: 0; background: white;
+    }
+    .pa-page {
+      width: 297mm; height: 210mm;
+      display: grid; grid-template-columns: 1fr 1fr;
+      padding: 14mm 10mm; box-sizing: border-box;
+      page-break-after: always;
+      font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 12pt; line-height: 1.6; position: relative;
+    }
+    .pa-page-header {
+      position: absolute; top: 6mm; left: 10mm; right: 10mm;
+      display: flex; justify-content: space-between;
+      font-size: 9pt; color: #999; border-bottom: 1px solid #ddd;
+      padding-bottom: 2mm;
+    }
+    .pa-col { padding: 4mm 6mm; overflow: hidden; }
+    .pa-col:first-child { border-right: 1px dashed #ccc; }
+    .pa-q-head { font-weight: 700; color: #c8442a; margin-bottom: 4mm; }
+    .pa-sol {
+      margin-top: 4mm; padding: 3mm 4mm; background: #fffbe5;
+      border-radius: 2mm; font-size: 10pt;
+      border-top: 1px dashed #ccc;
+    }
+  }
+
   /* ================== Settings Modal ================== */
   .modal-bg {
     position: fixed;
@@ -1000,7 +1088,10 @@
       <button class="pdf-btn" id="btn-next" title="다음 페이지">›</button>
       <div class="spacer"></div>
       <button class="pdf-btn" id="btn-zoom-out" title="축소">−</button>
-      <button class="pdf-btn" id="btn-zoom-reset" title="기본 크기">100%</button>
+      <input type="number" id="zoom-input" min="20" max="300" step="5"
+        style="width:52px;text-align:center;background:rgba(0,0,0,0.3);color:#f4ecd8;border:1px solid #555;border-radius:4px;padding:4px 4px;font-size:12px;font-family:inherit;"
+        title="비율 직접 입력 후 Enter">
+      <span style="color:#b0a890;font-size:11px;">%</span>
       <button class="pdf-btn" id="btn-zoom-in" title="확대">+</button>
     </div>
     <div class="pdf-canvas-wrap" id="pdf-wrap">
@@ -1129,6 +1220,22 @@
   </div>
 </div>
 
+<!-- Print Preview Modal -->
+<div id="print-modal-bg">
+  <div class="pm-header">
+    <span class="pm-title">🖨 인쇄 미리보기 (A4 가로)</span>
+    <div class="pm-actions">
+      <button class="pm-btn pm-btn-print" id="pm-print-btn">🖨 프린트 출력</button>
+      <button class="pm-btn pm-btn-save" id="pm-save-btn">📷 이미지 저장</button>
+      <button class="pm-btn pm-btn-close" id="pm-close-btn">✕ 닫기</button>
+    </div>
+  </div>
+  <div id="print-pages-container"></div>
+</div>
+
+<!-- 실제 프린트용 숨김 영역 -->
+<div id="print-area"></div>
+
 <!-- Settings Modal -->
 <div class="modal-bg" id="settings-modal">
   <div class="modal">
@@ -1192,6 +1299,7 @@
 
 <!-- PDF.js: UMD 빌드 사용 (file:// 프로토콜 호환, ES module import 불필요) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script type="module">
 // ============================================================
@@ -1491,7 +1599,7 @@ const state = {
   answerPdfDoc: null,
   curPage: 1,         // 실제 PDF 로드 후 첫 콘텐츠 페이지로 이동
   totalPages: 0,
-  zoom: 1.2,
+  zoom: 0.912,
   apiKey: localStorage.getItem('claude_api_key') || '',
   model: localStorage.getItem('claude_model') || 'claude-sonnet-4-6',
   textbookData: null,    // ArrayBuffer of textbook PDF
@@ -2691,36 +2799,94 @@ function retypeset(el) {
   }
 }
 
+function buildPrintPageHTML(qs, title, pageIdx, totalPages, cls) {
+  const pair = qs.slice(pageIdx * 2, pageIdx * 2 + 2);
+  const baseIdx = pageIdx * 2;
+  let cols = '';
+  pair.forEach((q, ci) => {
+    const safeSvg = q.svg ? sanitizeSVG(q.svg) : '';
+    cols += `<div class="${cls}-col">
+      <div class="${cls}-q-head">문제 ${baseIdx + ci + 1}</div>
+      <div>${q.question.replace(/\n/g, '<br>')}</div>
+      ${safeSvg ? `<div style="text-align:center;margin:6px 0">${safeSvg}</div>` : ''}
+      <div class="${cls}-sol"><b>풀이:</b> ${q.solution.replace(/\n/g, '<br>')}<br><b>답:</b> ${q.answer || ''}</div>
+    </div>`;
+  });
+  return `<div class="${cls}-page">
+    <div class="${cls}-page-header"><span>${title}</span><span>${pageIdx + 1} / ${totalPages}</span></div>
+    ${cols}
+  </div>`;
+}
+
 function printQuestions() {
   if (!state.generatedQuestions.length) { toast('생성된 문제가 없습니다.', true); return; }
   const ctx = findUnitForPage(state.curPage);
   const lv = { basic: '기본', applied: '응용', advanced: '심화' }[state.level];
-  const w = window.open('', '_blank');
-  let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>AI 추가문제</title>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"><\/script>
-    <style>
-      body { font-family: 'Malgun Gothic', sans-serif; padding: 30px; max-width: 700px; margin: 0 auto; line-height: 1.7; }
-      h1 { font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 8px; }
-      .meta { color: #666; font-size: 13px; margin-bottom: 20px; }
-      .q { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; page-break-inside: avoid; }
-      .q-head { font-weight: bold; color: #c8442a; margin-bottom: 8px; }
-      .sol { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #aaa; color: #444; font-size: 13px; background: #fffbe5; padding: 10px; border-radius: 3px; }
-      @media print { body { padding: 15px; } }
-    </style></head><body>
-    <h1>AI 추가 문제 — ${ctx?.unit.title || ''}</h1>
-    <div class="meta">${ctx?.item.name || ''} · 난이도: ${lv} · ${state.generatedQuestions.length}문항</div>`;
-  state.generatedQuestions.forEach((q, i) => {
-    const safeSvg = q.svg ? sanitizeSVG(q.svg) : '';
-    html += `<div class="q">
-      <div class="q-head">문제 ${i + 1}</div>
-      <div>${q.question.replace(/\n/g, '<br>')}</div>
-      ${safeSvg ? `<div style="margin:10px 0; text-align:center;">${safeSvg}</div>` : ''}
-      <div class="sol"><b>풀이</b><br>${q.solution.replace(/\n/g, '<br>')}<br><br><b>답:</b> ${q.answer || ''}</div>
-    </div>`;
-  });
-  html += '</body></html>';
-  w.document.write(html);
-  w.document.close();
+  const title = `${ctx?.unit.title || ''} ${ctx?.item.name || ''} · ${lv}`;
+  const qs = state.generatedQuestions;
+  const totalPages = Math.ceil(qs.length / 2);
+
+  const container = document.getElementById('print-pages-container');
+  container.innerHTML = '';
+  for (let i = 0; i < totalPages; i++) {
+    container.insertAdjacentHTML('beforeend', buildPrintPageHTML(qs, title, i, totalPages, 'pm'));
+  }
+  if (window.MathJax?.typesetPromise) {
+    window.MathJax.typesetPromise([container]).catch(() => {});
+  }
+  document.getElementById('print-modal-bg').style.display = 'block';
+}
+
+function initPrintModal() {
+  document.getElementById('pm-close-btn').onclick = () => {
+    document.getElementById('print-modal-bg').style.display = 'none';
+  };
+
+  document.getElementById('pm-print-btn').onclick = () => {
+    const ctx = findUnitForPage(state.curPage);
+    const lv = { basic: '기본', applied: '응용', advanced: '심화' }[state.level];
+    const title = `${ctx?.unit.title || ''} ${ctx?.item.name || ''} · ${lv}`;
+    const qs = state.generatedQuestions;
+    const totalPages = Math.ceil(qs.length / 2);
+    let pages = '';
+    for (let i = 0; i < totalPages; i++) pages += buildPrintPageHTML(qs, title, i, totalPages, 'pa');
+    const area = document.getElementById('print-area');
+    area.innerHTML = pages;
+    const doP = () => window.print();
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise([area]).then(doP).catch(doP);
+    } else { doP(); }
+  };
+
+  document.getElementById('pm-save-btn').onclick = async () => {
+    const pages = document.querySelectorAll('.pm-page');
+    if (!pages.length) return;
+    const btn = document.getElementById('pm-save-btn');
+    btn.textContent = '⏳ 변환 중...'; btn.disabled = true;
+    try {
+      const W = 1169, H = 827; // A4 가로 100dpi
+      const gap = 8;
+      const out = document.createElement('canvas');
+      out.width = W; out.height = H * pages.length + gap * (pages.length - 1);
+      const octx = out.getContext('2d');
+      octx.fillStyle = '#fff'; octx.fillRect(0, 0, out.width, out.height);
+      for (let i = 0; i < pages.length; i++) {
+        const c = await html2canvas(pages[i], {
+          scale: W / pages[i].offsetWidth,
+          useCORS: true,
+          backgroundColor: '#ffffff'
+        });
+        octx.drawImage(c, 0, i * (H + gap));
+      }
+      const link = document.createElement('a');
+      link.download = 'AI문제.png';
+      link.href = out.toDataURL('image/png');
+      link.click();
+    } catch(e) {
+      toast('이미지 저장 실패: ' + e.message, true);
+    }
+    btn.textContent = '📷 이미지 저장'; btn.disabled = false;
+  };
 }
 
 // ============================================================
@@ -2952,10 +3118,21 @@ function initToolbar() {
     const p = parseInt(e.target.value);
     if (!isNaN(p)) renderPage(p);
   };
-  document.getElementById('btn-zoom-in').onclick = () => { state.zoom = Math.min(2.5, state.zoom + 0.15); renderPage(state.curPage); updateZoomLabel(); };
-  document.getElementById('btn-zoom-out').onclick = () => { state.zoom = Math.max(0.4, state.zoom - 0.15); renderPage(state.curPage); updateZoomLabel(); };
-  document.getElementById('btn-zoom-reset').onclick = () => { state.zoom = 1.2; renderPage(state.curPage); updateZoomLabel(); };
+  document.getElementById('btn-zoom-in').onclick = () => { state.zoom = Math.min(2.5, state.zoom + 0.06); renderPage(state.curPage); updateZoomLabel(); };
+  document.getElementById('btn-zoom-out').onclick = () => { state.zoom = Math.max(0.24, state.zoom - 0.06); renderPage(state.curPage); updateZoomLabel(); };
+  const zoomInput = document.getElementById('zoom-input');
+  zoomInput.onchange = zoomInput.onkeydown = (e) => {
+    if (e.type === 'keydown' && e.key !== 'Enter') return;
+    const pct = parseInt(zoomInput.value);
+    if (!isNaN(pct) && pct >= 20 && pct <= 300) {
+      state.zoom = pct / 100 * 1.2;
+      renderPage(state.curPage);
+      updateZoomLabel();
+    }
+  };
   
+  updateZoomLabel(); // 초기값 표시
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -2965,7 +3142,8 @@ function initToolbar() {
 }
 
 function updateZoomLabel() {
-  document.getElementById('btn-zoom-reset').textContent = Math.round(state.zoom * 100 / 1.2) + '%';
+  const pct = Math.round(state.zoom * 100 / 1.2);
+  document.getElementById('zoom-input').value = pct;
 }
 
 // ============================================================
@@ -3005,6 +3183,7 @@ async function init() {
   initToolbar();
   initSettings();
   initAIControls();
+  initPrintModal();
   initWrongNotes();
   initAnswerModal();
   initDragDrop();
