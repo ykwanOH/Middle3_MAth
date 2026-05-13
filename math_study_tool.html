@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -846,37 +846,38 @@
   #print-pages-container {
     max-width: 880px; margin: 0 auto;
   }
+  }
   .pm-page {
     background: white;
     width: 100%;
     aspect-ratio: 297 / 210;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    padding: 4% 3%;
+    grid-template-rows: auto 1fr;
+    padding: 2% 3%;
     box-sizing: border-box;
     font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
-    font-size: clamp(11px, 1.4vw, 14px);
-    line-height: 1.6;
-    position: relative;
+    font-size: clamp(10px, 1.3vw, 13px);
+    line-height: 1.5;
     margin-bottom: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   }
   .pm-page-header {
-    position: absolute; top: 1.5%; left: 3%; right: 3%;
+    grid-column: 1 / -1;
     display: flex; justify-content: space-between;
     font-size: 0.75em; color: #999; border-bottom: 1px solid #ddd;
-    padding-bottom: 3px;
+    padding-bottom: 3px; margin-bottom: 4px;
   }
   .pm-col {
-    padding: 4% 3%;
+    padding: 1.5% 2%;
     overflow: hidden;
+    min-height: 0;
   }
   .pm-col:first-child { border-right: 1px dashed #ccc; }
-  .pm-q-head { font-weight: 700; color: #c8442a; margin-bottom: 5px; }
+  .pm-q-head { font-weight: 700; color: #c8442a; margin-bottom: 4px; }
   .pm-sol {
-    margin-top: 8px; padding: 6px 8px; background: #fffbe5;
-    border-radius: 4px; font-size: 0.88em;
-    border-top: 1px dashed #ccc;
+    margin-top: 6px; padding: 5px 7px; background: #fffbe5;
+    border-radius: 4px; border-top: 1px dashed #ccc;
   }
   /* 실제 인쇄용 숨김 영역 */
   #print-area { display: none; }
@@ -889,23 +890,24 @@
     .pa-page {
       width: 297mm; height: 210mm;
       display: grid; grid-template-columns: 1fr 1fr;
-      padding: 14mm 10mm; box-sizing: border-box;
+      grid-template-rows: auto 1fr;
+      padding: 8mm 10mm; box-sizing: border-box;
       page-break-after: always;
       font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
-      font-size: 12pt; line-height: 1.6; position: relative;
+      font-size: 11pt; line-height: 1.5;
     }
     .pa-page-header {
-      position: absolute; top: 6mm; left: 10mm; right: 10mm;
+      grid-column: 1 / -1;
       display: flex; justify-content: space-between;
-      font-size: 9pt; color: #999; border-bottom: 1px solid #ddd;
-      padding-bottom: 2mm;
+      font-size: 8pt; color: #999; border-bottom: 1px solid #ddd;
+      padding-bottom: 2mm; margin-bottom: 3mm;
     }
-    .pa-col { padding: 4mm 6mm; overflow: hidden; }
+    .pa-col { padding: 2mm 5mm; overflow: hidden; min-height: 0; }
     .pa-col:first-child { border-right: 1px dashed #ccc; }
-    .pa-q-head { font-weight: 700; color: #c8442a; margin-bottom: 4mm; }
+    .pa-q-head { font-weight: 700; color: #c8442a; margin-bottom: 3mm; }
     .pa-sol {
-      margin-top: 4mm; padding: 3mm 4mm; background: #fffbe5;
-      border-radius: 2mm; font-size: 10pt;
+      margin-top: 3mm; padding: 2mm 3mm; background: #fffbe5;
+      border-radius: 2mm;
       border-top: 1px dashed #ccc;
     }
   }
@@ -2818,6 +2820,24 @@ function buildPrintPageHTML(qs, title, pageIdx, totalPages, cls) {
   </div>`;
 }
 
+function fitPrintColumns() {
+  // 각 컬럼의 내용이 넘치면 폰트/줄간격을 줄여서 맞춤
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.pm-page').forEach(page => {
+      page.querySelectorAll('.pm-col').forEach(col => {
+        col.style.fontSize = '';
+        col.style.lineHeight = '';
+        let fs = parseFloat(getComputedStyle(col).fontSize) || 13;
+        while (col.scrollHeight > col.clientHeight + 2 && fs > 7) {
+          fs = Math.max(7, fs - 0.4);
+          col.style.fontSize = fs + 'px';
+          col.style.lineHeight = fs < 10 ? '1.2' : (fs < 12 ? '1.3' : '1.4');
+        }
+      });
+    });
+  });
+}
+
 function printQuestions() {
   if (!state.generatedQuestions.length) { toast('생성된 문제가 없습니다.', true); return; }
   const ctx = findUnitForPage(state.curPage);
@@ -2831,10 +2851,12 @@ function printQuestions() {
   for (let i = 0; i < totalPages; i++) {
     container.insertAdjacentHTML('beforeend', buildPrintPageHTML(qs, title, i, totalPages, 'pm'));
   }
-  if (window.MathJax?.typesetPromise) {
-    window.MathJax.typesetPromise([container]).catch(() => {});
-  }
   document.getElementById('print-modal-bg').style.display = 'block';
+  if (window.MathJax?.typesetPromise) {
+    window.MathJax.typesetPromise([container]).then(() => setTimeout(fitPrintColumns, 80)).catch(() => setTimeout(fitPrintColumns, 80));
+  } else {
+    setTimeout(fitPrintColumns, 80);
+  }
 }
 
 function initPrintModal() {
