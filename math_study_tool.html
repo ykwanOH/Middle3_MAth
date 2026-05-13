@@ -852,33 +852,70 @@
     width: 100%;
     aspect-ratio: 297 / 210;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     padding: 2% 3%;
     box-sizing: border-box;
     font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
-    font-size: clamp(10px, 1.3vw, 13px);
+    font-size: 11pt;
     line-height: 1.5;
     margin-bottom: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   }
   .pm-page-header {
-    grid-column: 1 / -1;
     display: flex; justify-content: space-between;
-    font-size: 0.75em; color: #999; border-bottom: 1px solid #ddd;
-    padding-bottom: 3px; margin-bottom: 4px;
+    font-size: 8pt; color: #999;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 3px; margin-bottom: 6px;
   }
-  .pm-col {
-    padding: 1.5% 2%;
+  .pm-q-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px dashed #aaa;
+  }
+  .pm-q-col {
+    padding: 0 4px;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+  .pm-q-col:first-child { border-right: 1px dashed #ddd; padding-right: 12px; }
+  .pm-q-head { font-weight: 700; color: #c8442a; margin-bottom: 5px; font-size: 11pt; }
+  .pm-sol-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pm-sol-col {
+    position: relative;
     overflow: hidden;
     min-height: 0;
+    background: #fffbe5;
+    border-radius: 4px;
+    padding: 6px 8px;
   }
-  .pm-col:first-child { border-right: 1px dashed #ccc; }
-  .pm-q-head { font-weight: 700; color: #c8442a; margin-bottom: 4px; }
-  .pm-sol {
-    margin-top: 6px; padding: 5px 7px; background: #fffbe5;
-    border-radius: 4px; border-top: 1px dashed #ccc;
+  .pm-sol-inner {
+    position: relative;
+    top: 0;
+    font-size: 11pt;
+    line-height: 1.5;
   }
+  .pm-sol-inner b { color: #555; }
+  .pm-page.is-continuation .pm-q-row {
+    background: #f3f0e8;
+    border: 1px dashed #c8b070;
+    border-radius: 4px;
+    padding: 10px;
+    text-align: center;
+    color: #8a7042;
+    font-size: 10pt;
+    font-style: italic;
+    grid-template-columns: 1fr;
+  }
+  .pm-page.is-continuation .pm-q-col { border: none; padding: 0; }
   /* 실제 인쇄용 숨김 영역 */
   #print-area { display: none; }
   @media print {
@@ -889,27 +926,42 @@
     }
     .pa-page {
       width: 297mm; height: 210mm;
-      display: grid; grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto 1fr;
+      display: grid; grid-template-rows: auto auto 1fr;
       padding: 8mm 10mm; box-sizing: border-box;
       page-break-after: always;
       font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
       font-size: 11pt; line-height: 1.5;
     }
     .pa-page-header {
-      grid-column: 1 / -1;
       display: flex; justify-content: space-between;
-      font-size: 8pt; color: #999; border-bottom: 1px solid #ddd;
+      font-size: 8pt; color: #999;
+      border-bottom: 1px solid #ddd;
       padding-bottom: 2mm; margin-bottom: 3mm;
     }
-    .pa-col { padding: 2mm 5mm; overflow: hidden; min-height: 0; }
-    .pa-col:first-child { border-right: 1px dashed #ccc; }
-    .pa-q-head { font-weight: 700; color: #c8442a; margin-bottom: 3mm; }
-    .pa-sol {
-      margin-top: 3mm; padding: 2mm 3mm; background: #fffbe5;
-      border-radius: 2mm;
-      border-top: 1px dashed #ccc;
+    .pa-q-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8mm;
+      padding-bottom: 3mm; margin-bottom: 3mm;
+      border-bottom: 1px dashed #aaa;
     }
+    .pa-q-col { padding: 0 2mm; }
+    .pa-q-col:first-child { border-right: 1px dashed #ddd; padding-right: 5mm; }
+    .pa-q-head { font-weight: 700; color: #c8442a; margin-bottom: 2mm; }
+    .pa-sol-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8mm;
+      min-height: 0; overflow: hidden;
+    }
+    .pa-sol-col {
+      position: relative; overflow: hidden;
+      background: #fffbe5; border-radius: 2mm; padding: 2mm 3mm;
+    }
+    .pa-sol-inner { position: relative; top: 0; }
+    .pa-page.is-continuation .pa-q-row {
+      background: #f3f0e8; border: 1px dashed #c8b070; border-radius: 2mm;
+      padding: 4mm; text-align: center; color: #8a7042;
+      font-size: 9pt; font-style: italic;
+      grid-template-columns: 1fr;
+    }
+    .pa-page.is-continuation .pa-q-col { border: none; padding: 0; }
   }
 
   /* ================== Settings Modal ================== */
@@ -2804,37 +2856,117 @@ function retypeset(el) {
 function buildPrintPageHTML(qs, title, pageIdx, totalPages, cls) {
   const pair = qs.slice(pageIdx * 2, pageIdx * 2 + 2);
   const baseIdx = pageIdx * 2;
-  let cols = '';
-  pair.forEach((q, ci) => {
-    const safeSvg = q.svg ? sanitizeSVG(q.svg) : '';
-    cols += `<div class="${cls}-col">
-      <div class="${cls}-q-head">문제 ${baseIdx + ci + 1}</div>
-      <div>${q.question.replace(/\n/g, '<br>')}</div>
-      ${safeSvg ? `<div style="text-align:center;margin:6px 0">${safeSvg}</div>` : ''}
-      <div class="${cls}-sol"><b>풀이:</b> ${q.solution.replace(/\n/g, '<br>')}<br><b>답:</b> ${q.answer || ''}</div>
-    </div>`;
-  });
-  return `<div class="${cls}-page">
+  let qCols = '', solCols = '';
+  for (let ci = 0; ci < 2; ci++) {
+    const q = pair[ci];
+    if (q) {
+      const safeSvg = q.svg ? sanitizeSVG(q.svg) : '';
+      qCols += `<div class="${cls}-q-col">
+        <div class="${cls}-q-head">문제 ${baseIdx + ci + 1}</div>
+        <div>${q.question.replace(/\n/g, '<br>')}</div>
+        ${safeSvg ? `<div style="text-align:center;margin:5px 0">${safeSvg}</div>` : ''}
+      </div>`;
+      solCols += `<div class="${cls}-sol-col"><div class="${cls}-sol-inner" data-q-idx="${baseIdx + ci + 1}"><b>풀이:</b> ${q.solution.replace(/\n/g, '<br>')}<br><b>답:</b> ${q.answer || ''}</div></div>`;
+    } else {
+      qCols += `<div class="${cls}-q-col"></div>`;
+      solCols += `<div class="${cls}-sol-col"><div class="${cls}-sol-inner"></div></div>`;
+    }
+  }
+  return `<div class="${cls}-page" data-pair-idx="${pageIdx}">
     <div class="${cls}-page-header"><span>${title}</span><span>${pageIdx + 1} / ${totalPages}</span></div>
-    ${cols}
+    <div class="${cls}-q-row">${qCols}</div>
+    <div class="${cls}-sol-row">${solCols}</div>
   </div>`;
 }
 
-function fitPrintColumns() {
-  // 각 컬럼의 내용이 넘치면 폰트/줄간격을 줄여서 맞춤
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.pm-page').forEach(page => {
-      page.querySelectorAll('.pm-col').forEach(col => {
-        col.style.fontSize = '';
-        col.style.lineHeight = '';
-        let fs = parseFloat(getComputedStyle(col).fontSize) || 13;
-        while (col.scrollHeight > col.clientHeight + 2 && fs > 7) {
-          fs = Math.max(7, fs - 0.4);
-          col.style.fontSize = fs + 'px';
-          col.style.lineHeight = fs < 10 ? '1.2' : (fs < 12 ? '1.3' : '1.4');
-        }
-      });
+// 풀이만 폰트(11→9pt) + 줄간격(1.5→1.0) 축소
+function fitSolutions(cls = 'pm') {
+  document.querySelectorAll(`.${cls}-page`).forEach(page => {
+    page.querySelectorAll(`.${cls}-sol-col`).forEach(col => {
+      const inner = col.querySelector(`.${cls}-sol-inner`);
+      if (!inner || !inner.innerHTML.trim()) return;
+      // 연속(continuation) 페이지는 top offset 유지하므로 fit 대상에서 제외
+      if (col.closest(`.${cls}-page.is-continuation`)) return;
+      inner.style.fontSize = '';
+      inner.style.lineHeight = '';
+      let fs = 11, lh = 1.5;
+      const apply = () => { inner.style.fontSize = fs + 'pt'; inner.style.lineHeight = lh.toFixed(2); };
+      apply();
+      // 1단계: 폰트 11 → 9pt
+      while (inner.scrollHeight > col.clientHeight + 1 && fs > 9) {
+        fs = Math.max(9, fs - 0.25); apply();
+      }
+      // 2단계: 줄간격 1.5 → 1.0
+      while (inner.scrollHeight > col.clientHeight + 1 && lh > 1.0) {
+        lh = Math.max(1.0, lh - 0.05); apply();
+      }
     });
+  });
+}
+
+// 축소 후에도 풀이가 잘릴 경우 "(계속)" 페이지를 만들어 이어 붙임
+function paginateOverflow(cls = 'pm') {
+  let safety = 6;  // 무한 루프 방지: 최대 6번 반복(=원본 + 6 연속)
+  let didAddPage = true;
+  while (didAddPage && safety-- > 0) {
+    didAddPage = false;
+    const allPages = [...document.querySelectorAll(`.${cls}-page`)];
+    for (const page of allPages) {
+      if (page.dataset.contChecked === '1') continue;
+      page.dataset.contChecked = '1';
+      const solCols = [...page.querySelectorAll(`.${cls}-sol-col`)];
+      let needCont = false;
+      const overflowData = solCols.map(col => {
+        const inner = col.querySelector(`.${cls}-sol-inner`);
+        if (!inner || !inner.innerHTML.trim()) return null;
+        const curTop = parseFloat(inner.style.top || '0');
+        const innerH = inner.scrollHeight;
+        const visibleH = col.clientHeight;  // 현재 페이지에서 보이는 만큼
+        // 보이지 않는 영역(= 다음 컨티뉴에 표시할 부분)이 있는지
+        const overflowBy = innerH - (Math.abs(curTop) + visibleH);
+        if (overflowBy > 2) { needCont = true; return { inner, visibleH, curTop, innerH }; }
+        return null;
+      });
+      if (!needCont) continue;
+      // 연속 페이지 생성
+      const contPage = document.createElement('div');
+      contPage.className = `${cls}-page is-continuation`;
+      contPage.dataset.pairIdx = page.dataset.pairIdx;
+      const titleSpan = page.querySelector(`.${cls}-page-header span`)?.textContent || '';
+      let solHTML = '';
+      for (let i = 0; i < solCols.length; i++) {
+        const info = overflowData[i];
+        const origInner = solCols[i].querySelector(`.${cls}-sol-inner`);
+        const innerHTML = origInner ? origInner.innerHTML : '';
+        const fs = origInner?.style.fontSize || '';
+        const lh = origInner?.style.lineHeight || '';
+        if (info) {
+          const newTop = info.curTop - info.visibleH;  // 더 위로 끌어올려 다음 부분 표시
+          solHTML += `<div class="${cls}-sol-col"><div class="${cls}-sol-inner" style="top:${newTop}px;font-size:${fs};line-height:${lh};" data-q-idx="${origInner?.dataset?.qIdx || ''}">${innerHTML}</div></div>`;
+        } else {
+          solHTML += `<div class="${cls}-sol-col"><div class="${cls}-sol-inner"></div></div>`;
+        }
+      }
+      const contIdxs = overflowData.map((d, i) => d ? (i + 1) : null).filter(x => x);
+      const msg = `※ 위 페이지 풀이 계속 (문제 ${overflowData.map((d, i) => d ? ((parseInt(page.dataset.pairIdx) * 2) + i + 1) : null).filter(Boolean).join(', ')})`;
+      contPage.innerHTML = `
+        <div class="${cls}-page-header"><span>${titleSpan} — 계속</span><span></span></div>
+        <div class="${cls}-q-row"><div class="${cls}-q-col">${msg}</div></div>
+        <div class="${cls}-sol-row">${solHTML}</div>
+      `;
+      page.parentNode.insertBefore(contPage, page.nextSibling);
+      didAddPage = true;
+    }
+  }
+  // dataset 정리
+  document.querySelectorAll(`.${cls}-page`).forEach(p => delete p.dataset.contChecked);
+}
+
+function processPrintLayout(cls = 'pm') {
+  requestAnimationFrame(() => {
+    fitSolutions(cls);
+    // 한 프레임 더 기다려 레이아웃 정착 후 페이지 분할
+    requestAnimationFrame(() => paginateOverflow(cls));
   });
 }
 
@@ -2853,9 +2985,9 @@ function printQuestions() {
   }
   document.getElementById('print-modal-bg').style.display = 'block';
   if (window.MathJax?.typesetPromise) {
-    window.MathJax.typesetPromise([container]).then(() => setTimeout(fitPrintColumns, 80)).catch(() => setTimeout(fitPrintColumns, 80));
+    window.MathJax.typesetPromise([container]).then(() => setTimeout(() => processPrintLayout('pm'), 80)).catch(() => setTimeout(() => processPrintLayout('pm'), 80));
   } else {
-    setTimeout(fitPrintColumns, 80);
+    setTimeout(() => processPrintLayout('pm'), 80);
   }
 }
 
@@ -2874,10 +3006,14 @@ function initPrintModal() {
     for (let i = 0; i < totalPages; i++) pages += buildPrintPageHTML(qs, title, i, totalPages, 'pa');
     const area = document.getElementById('print-area');
     area.innerHTML = pages;
-    const doP = () => window.print();
+    const doP = () => {
+      fitSolutions('pa');
+      paginateOverflow('pa');
+      setTimeout(() => window.print(), 50);
+    };
     if (window.MathJax?.typesetPromise) {
-      window.MathJax.typesetPromise([area]).then(doP).catch(doP);
-    } else { doP(); }
+      window.MathJax.typesetPromise([area]).then(() => setTimeout(doP, 50)).catch(() => setTimeout(doP, 50));
+    } else { setTimeout(doP, 50); }
   };
 
   document.getElementById('pm-save-btn').onclick = async () => {
